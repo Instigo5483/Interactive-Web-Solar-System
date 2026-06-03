@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cosmic Explorer - Interactive 3D Solar System</title>
+  <meta name="description" content="Embark on a fullscreen cinematic 3D journey through our solar system, driven by scroll animations. Explore the Sun and its planets in stunning interactive detail.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@300;400;600&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- WebGL Canvas for Three.js -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Sound Toggle & Audio -->
+  <button id="sound-toggle" aria-label="Toggle ambient soundtrack">
+    <svg class="icon-mute" viewBox="0 0 24 24" width="24" height="24">
+      <path fill="currentColor" d="M3.63 3.63a.996.996 0 0 0 0 1.41L7.29 8.7 7 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81l2.22 2.22a.996.996 0 1 0 1.41-1.41L5.05 3.63a.996.996 0 0 0-1.42 0zM10 15.17L7.83 13H5v-2h2.83l.88-.88L10 11.26v3.91zM12 4L9.91 6.09 12 8.18V4zm4 8c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.21.05-.42.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.01 14.74 20.5 13.43 20.5 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71z"/>
+    </svg>
+    <svg class="icon-audio hidden" viewBox="0 0 24 24" width="24" height="24">
+      <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm7 5.17L7.83 13H5v-2h2.83L10 8.83v5.34zM16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+    </svg>
+  </button>
+  <audio id="ambient-music" loop src="https://assets.mixkit.co/active_storage/sfx/2568/2568-84.wav" preload="auto"></audio>
+
+  <!-- Interactive HUD Overlays (Fixed) -->
+  <div id="ui-overlay">
+    
+    <!-- Step 0: Overview Card -->
+    <div id="card-overview" class="ui-card active">
+      <span class="subtitle">Welcome to the</span>
+      <h1>Solar System</h1>
+      <p class="description">A responsive, scroll-driven visual journey across the cosmos. Control the camera by scrolling down to visit each planet in our orbit.</p>
+      <div class="scroll-indicator">
+        <span class="indicator-text">Scroll to orbit</span>
+        <div class="mouse-icon">
+          <div class="wheel"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 1: Sun Card -->
+    <div id="card-sun" class="ui-card">
+      <div class="card-header">
+        <span class="category">The Star</span>
+        <h2>The Sun</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Yellow Dwarf</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">1,392,700 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">0 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Temp</span>
+          <span class="value">15M°C (Core)</span>
+        </div>
+      </div>
+      <p class="fact">Contains 99.86% of the mass of the entire Solar System. Its powerful magnetic field drives solar flares and beautiful auroras on Earth.</p>
+    </div>
+
+    <!-- Step 2: Mercury Card -->
+    <div id="card-mercury" class="ui-card">
+      <div class="card-header">
+        <span class="category">First Planet</span>
+        <h2>Mercury</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Terrestrial</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">4,879 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">57.9M km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">0</span>
+        </div>
+      </div>
+      <p class="fact">The smallest planet and closest to the Sun. It experiences extreme temperature swings, plunging to -180°C at night and soaring to 430°C in daylight.</p>
+    </div>
+
+    <!-- Step 3: Venus Card -->
+    <div id="card-venus" class="ui-card dark-bg">
+      <div class="card-header">
+        <span class="category">Second Planet</span>
+        <h2>Venus</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Terrestrial</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">12,104 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">108.2M km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">0</span>
+        </div>
+      </div>
+      <p class="fact">Venus is the hottest planet in our solar system, wrapped in a dense atmosphere of toxic carbon dioxide that traps heat in a runaway greenhouse effect.</p>
+    </div>
+
+    <!-- Step 4: Earth Card -->
+    <div id="card-earth" class="ui-card">
+      <div class="card-header">
+        <span class="category">Third Planet</span>
+        <h2>Earth</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Terrestrial</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">12,742 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">149.6M km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">1 (Luna)</span>
+        </div>
+      </div>
+      <p class="fact">The only known cosmic body hosting life. Liquid surface water and a protective atmospheric shield keep Earth balanced and beautifully habitable.</p>
+    </div>
+
+    <!-- Step 5: Mars Card -->
+    <div id="card-mars" class="ui-card">
+      <div class="card-header">
+        <span class="category">Fourth Planet</span>
+        <h2>Mars</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Terrestrial</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">6,779 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">227.9M km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">2 (Phobos, Deimos)</span>
+        </div>
+      </div>
+      <p class="fact">Known as the Red Planet due to iron oxide rust. It boasts the Solar System's tallest volcano, Olympus Mons, and features vast polar ice caps.</p>
+    </div>
+
+    <!-- Step 6: Jupiter Card -->
+    <div id="card-jupiter" class="ui-card">
+      <div class="card-header">
+        <span class="category">Fifth Planet</span>
+        <h2>Jupiter</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Gas Giant</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">139,820 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">778.5M km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">95 (Io, Europa...)</span>
+        </div>
+      </div>
+      <p class="fact">A massive gas giant more than twice the mass of all other planets combined. Its iconic Great Red Spot is a persistent storm larger than Earth.</p>
+    </div>
+
+    <!-- Step 7: Saturn Card -->
+    <div id="card-saturn" class="ui-card">
+      <div class="card-header">
+        <span class="category">Sixth Planet</span>
+        <h2>Saturn</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Gas Giant</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">116,460 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">1.4B km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">146 (Titan...)</span>
+        </div>
+      </div>
+      <p class="fact">Famed for its spectacular, ring system made of billions of ice chunks, dust, and rock. Saturn is so light it would float in a giant bathtub.</p>
+    </div>
+
+    <!-- Step 8: Uranus Card -->
+    <div id="card-uranus" class="ui-card">
+      <div class="card-header">
+        <span class="category">Seventh Planet</span>
+        <h2>Uranus</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Ice Giant</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">50,724 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">2.9B km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">28</span>
+        </div>
+      </div>
+      <p class="fact">An ice giant spinning on a nearly 98-degree axial tilt, causing extreme seasonal variations. It possesses a beautiful, vertical blue ring system.</p>
+    </div>
+
+    <!-- Step 9: Neptune Card -->
+    <div id="card-neptune" class="ui-card">
+      <div class="card-header">
+        <span class="category">Eighth Planet</span>
+        <h2>Neptune</h2>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="label">Type</span>
+          <span class="value">Ice Giant</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Diameter</span>
+          <span class="value">49,244 km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Distance</span>
+          <span class="value">4.5B km</span>
+        </div>
+        <div class="stat-item">
+          <span class="label">Moons</span>
+          <span class="value">16 (Triton...)</span>
+        </div>
+      </div>
+      <p class="fact">A deep-blue, active ice giant swept by supersonic winds that reach speeds of 2,100 km/h, the fastest recorded storms in the solar system.</p>
+    </div>
+
+  </div>
+
+  <!-- Minimalist Navigation Sidebar (Fixed) -->
+  <nav id="sidebar-nav">
+    <div class="progress-bar-container">
+      <div id="progress-indicator"></div>
+    </div>
+    <ul class="nav-dots">
+      <li class="nav-dot active" data-index="0"><span class="dot-tooltip">Overview</span></li>
+      <li class="nav-dot" data-index="1"><span class="dot-tooltip">The Sun</span></li>
+      <li class="nav-dot" data-index="2"><span class="dot-tooltip">Mercury</span></li>
+      <li class="nav-dot" data-index="3"><span class="dot-tooltip">Venus</span></li>
+      <li class="nav-dot" data-index="4"><span class="dot-tooltip">Earth</span></li>
+      <li class="nav-dot" data-index="5"><span class="dot-tooltip">Mars</span></li>
+      <li class="nav-dot" data-index="6"><span class="dot-tooltip">Jupiter</span></li>
+      <li class="nav-dot" data-index="7"><span class="dot-tooltip">Saturn</span></li>
+      <li class="nav-dot" data-index="8"><span class="dot-tooltip">Uranus</span></li>
+      <li class="nav-dot" data-index="9"><span class="dot-tooltip">Neptune</span></li>
+    </ul>
+  </nav>
+
+  <!-- Natural Scroll Trigger Sections -->
+  <div class="scroll-container">
+    <section id="section-0" class="scroll-section"></section>
+    <section id="section-1" class="scroll-section"></section>
+    <section id="section-2" class="scroll-section"></section>
+    <section id="section-3" class="scroll-section"></section>
+    <section id="section-4" class="scroll-section"></section>
+    <section id="section-5" class="scroll-section"></section>
+    <section id="section-6" class="scroll-section"></section>
+    <section id="section-7" class="scroll-section"></section>
+    <section id="section-8" class="scroll-section"></section>
+    <section id="section-9" class="scroll-section"></section>
+  </div>
+
+  <!-- Three.js, GSAP, and ScrollTrigger scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  
+  <!-- Main script -->
+  <script src="app.js"></script>
+</body>
+</html>
