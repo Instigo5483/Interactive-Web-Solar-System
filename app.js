@@ -256,32 +256,44 @@ function createStarTexture() {
   return new THREE.CanvasTexture(canvas);
 }
 
-const starsGeometry = new THREE.BufferGeometry();
-const starsCount = 4500;
-const starPositions = new Float32Array(starsCount * 3);
-
-for (let i = 0; i < starsCount; i++) {
-  const r = 280 + Math.random() * 520;
-  const theta = Math.random() * Math.PI * 2;
-  const phi = Math.acos((Math.random() * 2) - 1);
+// Helper to create a single star field layer
+function createStarFieldLayer(count, minRadius, maxRadius, size, opacity) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
   
-  starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-  starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-  starPositions[i * 3 + 2] = r * Math.cos(phi);
+  for (let i = 0; i < count; i++) {
+    const r = minRadius + Math.random() * (maxRadius - minRadius);
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos((Math.random() * 2) - 1);
+    
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3 + 2] = r * Math.cos(phi);
+  }
+  
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  
+  const material = new THREE.PointsMaterial({
+    size: size,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: opacity,
+    map: createStarTexture(),
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  
+  return new THREE.Points(geometry, material);
 }
 
-starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-const starsMaterial = new THREE.PointsMaterial({
-  size: 1.3,
-  sizeAttenuation: true,
-  transparent: true,
-  opacity: 0.85,
-  map: createStarTexture(),
-  depthWrite: false,
-  blending: THREE.AdditiveBlending
-});
-const starField = new THREE.Points(starsGeometry, starsMaterial);
-scene.add(starField);
+// 3 layers of stars for deep parallax space vibe
+const starLayerFar = createStarFieldLayer(8000, 700, 1200, 0.6, 0.45);
+const starLayerMid = createStarFieldLayer(4000, 400, 800, 1.1, 0.75);
+const starLayerNear = createStarFieldLayer(1000, 250, 500, 1.8, 0.90);
+
+scene.add(starLayerFar);
+scene.add(starLayerMid);
+scene.add(starLayerNear);
 
 // UHD Procedural Texture Generation Functions
 // 1. Mercury (1024x512 cratered rock)
@@ -1067,21 +1079,263 @@ planetConfigs.forEach((cfg, idx) => {
   });
 });
 
+// --- ASTEROID BELT SYSTEM (THREE.InstancedMesh) ---
+
+function createAsteroidTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  
+  // Base dark rock color
+  ctx.fillStyle = '#222222';
+  ctx.fillRect(0, 0, 128, 128);
+  
+  // Procedural craters & shading noise
+  for (let i = 0; i < 350; i++) {
+    const x = Math.random() * 128;
+    const y = Math.random() * 128;
+    const r = Math.random() * 2.5 + 0.5;
+    
+    // Some bright spots, mostly dark craters
+    ctx.fillStyle = Math.random() > 0.4 ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.08)';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+// Generate base rock geometry with irregular displaced vertices
+const rockGeo = new THREE.DodecahedronGeometry(0.12, 1);
+const rockPos = rockGeo.attributes.position;
+for (let i = 0; i < rockPos.count; i++) {
+  const x = rockPos.getX(i);
+  const y = rockPos.getY(i);
+  const z = rockPos.getZ(i);
+  
+  // Distort vertices randomly to mimic space debris
+  const distort = 0.015 + Math.random() * 0.025;
+  rockPos.setXYZ(
+    i,
+    x + (Math.random() - 0.5) * distort,
+    y + (Math.random() - 0.5) * distort,
+    z + (Math.random() - 0.5) * distort
+  );
+}
+rockGeo.computeVertexNormals();
+
+const asteroidTex = createAsteroidTexture();
+const rockMat = new THREE.MeshStandardMaterial({
+  map: asteroidTex,
+  bumpMap: asteroidTex,
+  bumpScale: 0.03,
+  roughness: 0.88,
+  metalness: 0.12,
+  color: 0xa0a0a0
+});
+
+// InstancedMesh for 3,500 asteroids
+const asteroidCount = 1500;
+const asteroidBeltMesh = new THREE.InstancedMesh(rockGeo, rockMat, asteroidCount);
+asteroidBeltMesh.castShadow = false;
+asteroidBeltMesh.receiveShadow = false;
+
+const tempMatrix = new THREE.Matrix4();
+const tempPosition = new THREE.Vector3();
+const tempRotation = new THREE.Euler();
+const tempQuaternion = new THREE.Quaternion();
+const tempScale = new THREE.Vector3();
+
+for (let i = 0; i < asteroidCount; i++) {
+  // Distribute in a gap between Mars (54) and Jupiter (68) -> Radius 57.5 to 64.5
+  const radius = 60 + Math.random() * 2.0;
+  const angle = Math.random() * Math.PI * 2;
+  
+  // Spherical orbital scatter with small vertical thickness
+  const x = Math.cos(angle) * radius;
+  const z = Math.sin(angle) * radius;
+  const y = (Math.random() - 0.5) * 0.6; // Vertical spread (reduced)
+  
+  tempPosition.set(x, y, z);
+  
+  // Irregular rotation
+  tempRotation.set(
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    Math.random() * Math.PI
+  );
+  tempQuaternion.setFromEuler(tempRotation);
+  
+  // Vary scale to have small and larger asteroids (with non-uniform scaling)
+  const scale = 0.15 + Math.random() * 0.25;
+  const stretchX = 0.85 + Math.random() * 0.3;
+  const stretchY = 0.85 + Math.random() * 0.3;
+  const stretchZ = 0.85 + Math.random() * 0.3;
+  tempScale.set(scale * stretchX, scale * stretchY, scale * stretchZ);
+  
+  tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
+  asteroidBeltMesh.setMatrixAt(i, tempMatrix);
+}
+
+scene.add(asteroidBeltMesh);
+
 // Sound Toggle system
 const soundToggle = document.getElementById('sound-toggle');
-const ambientMusic = document.getElementById('ambient-music');
+const ambientMusic = document.getElementById('ambient-music'); // Keep for safety, unused
 const iconMute = soundToggle.querySelector('.icon-mute');
 const iconAudio = soundToggle.querySelector('.icon-audio');
 let isMuted = true;
 
+// Web Audio API Space Ambient Synthesizer system
+let audioCtx = null;
+let spaceSynthNodes = null;
+let volumeTween = null;
+
+function initSpaceAmbient() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function createSpaceSynth() {
+  // 1. Root oscillator (deep 55Hz triangle wave)
+  const osc1 = audioCtx.createOscillator();
+  osc1.type = 'triangle';
+  osc1.frequency.value = 55;
+  
+  // 2. Fifth oscillator (deep 82.4Hz sine wave)
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.value = 82.4;
+  
+  // 3. Ambient solar wind (filtered white noise)
+  const bufferSize = audioCtx.sampleRate * 2; // 2 seconds of noise buffer
+  const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const output = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    output[i] = Math.random() * 2 - 1;
+  }
+  const noiseSource = audioCtx.createBufferSource();
+  noiseSource.buffer = noiseBuffer;
+  noiseSource.loop = true;
+  
+  const noiseFilter = audioCtx.createBiquadFilter();
+  noiseFilter.type = 'lowpass';
+  noiseFilter.frequency.value = 80;
+  noiseFilter.Q.value = 1.0;
+  
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.value = 0.12; // lower volume for noise element
+  
+  // 4. Main lowpass filter for the mix (keeps the sound deep and warm)
+  const mainFilter = audioCtx.createBiquadFilter();
+  mainFilter.type = 'lowpass';
+  mainFilter.frequency.value = 140;
+  mainFilter.Q.value = 1.5;
+  
+  // 5. Main gain node (start at 0 volume and fade in)
+  const mainGain = audioCtx.createGain();
+  mainGain.gain.value = 0.0;
+  
+  // 6. Slow LFO to modulate filter cutoffs for movement
+  const lfo = audioCtx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.03; // ~33 seconds sweep cycle
+  
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 45; // sweep range +/- 45Hz
+  
+  // Connect modulation
+  lfo.connect(lfoGain);
+  lfoGain.connect(mainFilter.frequency);
+  lfoGain.connect(noiseFilter.frequency);
+  
+  // Connect audio path
+  osc1.connect(mainFilter);
+  osc2.connect(mainFilter);
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(mainGain);
+  
+  mainFilter.connect(mainGain);
+  mainGain.connect(audioCtx.destination);
+  
+  // Start nodes
+  osc1.start(0);
+  osc2.start(0);
+  noiseSource.start(0);
+  lfo.start(0);
+  
+  spaceSynthNodes = {
+    osc1,
+    osc2,
+    noiseSource,
+    noiseFilter,
+    noiseGain,
+    mainFilter,
+    mainGain,
+    lfo,
+    lfoGain
+  };
+}
+
+function startSpaceAmbient() {
+  initSpaceAmbient();
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  
+  if (!spaceSynthNodes) {
+    createSpaceSynth();
+  }
+  
+  const gainNode = spaceSynthNodes.mainGain;
+  if (volumeTween) volumeTween.kill();
+  
+  const volumeObj = { val: gainNode.gain.value };
+  volumeTween = gsap.to(volumeObj, {
+    val: 0.38,
+    duration: 1.5,
+    ease: "power1.out",
+    onUpdate: () => {
+      if (spaceSynthNodes) {
+        gainNode.gain.value = volumeObj.val;
+      }
+    }
+  });
+}
+
+function stopSpaceAmbient() {
+  if (!spaceSynthNodes) return;
+  
+  const gainNode = spaceSynthNodes.mainGain;
+  if (volumeTween) volumeTween.kill();
+  
+  const volumeObj = { val: gainNode.gain.value };
+  volumeTween = gsap.to(volumeObj, {
+    val: 0.0,
+    duration: 1.2,
+    ease: "power1.out",
+    onUpdate: () => {
+      if (spaceSynthNodes) {
+        gainNode.gain.value = volumeObj.val;
+      }
+    }
+  });
+}
+
 soundToggle.addEventListener('click', () => {
   isMuted = !isMuted;
   if (!isMuted) {
-    ambientMusic.play().catch(err => console.warn("Music play blocked by browser:", err));
+    startSpaceAmbient();
     iconMute.classList.add('hidden');
     iconAudio.classList.remove('hidden');
   } else {
-    ambientMusic.pause();
+    stopSpaceAmbient();
     iconMute.classList.remove('hidden');
     iconAudio.classList.add('hidden');
   }
@@ -1218,9 +1472,18 @@ function animate() {
   // Rotate Sun corona glow billboard slightly
   sunGlow.rotation.z += 0.05 * delta;
   
-  // Twinkle star particles slightly
-  starField.rotation.y += 0.006 * delta;
-  starField.rotation.x += 0.002 * delta;
+  // Twinkle star particles slightly with parallax rotation speeds
+  starLayerFar.rotation.y += 0.001 * delta;
+  starLayerFar.rotation.x += 0.0003 * delta;
+  
+  starLayerMid.rotation.y += 0.003 * delta;
+  starLayerMid.rotation.x += 0.001 * delta;
+  
+  starLayerNear.rotation.y += 0.005 * delta;
+  starLayerNear.rotation.x += 0.0018 * delta;
+
+  // Slowly rotate the asteroid belt around the Sun
+  asteroidBeltMesh.rotation.y += 0.008 * delta;
 
   // 2. Camera tracking interpolation
   const progress = scrollState.progress;
